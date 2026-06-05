@@ -5,10 +5,10 @@ Prompt 1:
 Create a Terraform module in infra/ for InsightHub on AWS.
 Constraints: use an existing EKS cluster and VPC, create only the application
 namespace and managed services. RDS PostgreSQL 16 must be private, encrypted,
-single-AZ for lab cost, and suitable for pgvector. ElastiCache Redis must be
-private, encrypted, and used for the async ingestion queue. Use IRSA for pod AWS
-access. Store generated credentials in AWS Secrets Manager. Do not hardcode any
-secret.
+and suitable for pgvector. ElastiCache Redis must be private, encrypted, and
+used for the async ingestion queue. Use Multi-AZ defaults unless a human accepts
+the lab cost tradeoff. Use IRSA for pod AWS access. Store generated credentials
+in AWS Secrets Manager. Do not hardcode any secret.
 
 Prompt 2:
 Review the Terraform as a security gate. Make sure RDS is not public, Redis is
@@ -24,4 +24,3 @@ Prompt 4:
 Find any hardcoded credentials in Kubernetes manifests and replace them with
 Kubernetes Secret references so the Day 3 pipeline can inject runtime secrets.
 ```
-

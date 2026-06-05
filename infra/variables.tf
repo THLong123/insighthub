@@ -82,10 +82,27 @@ variable "rds_deletion_protection" {
   default     = true
 }
 
+variable "rds_multi_az" {
+  description = "Enable RDS Multi-AZ. Keep true for policy gate; set false only for short-lived low-cost labs after review."
+  type        = bool
+  default     = true
+}
+
 variable "redis_node_type" {
   description = "Small lab-friendly ElastiCache node type."
   type        = string
   default     = "cache.t4g.micro"
+}
+
+variable "redis_cache_clusters" {
+  description = "Number of Redis cache clusters. Use 2+ to satisfy automatic failover and Multi-AZ policy."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.redis_cache_clusters >= 2
+    error_message = "Use at least 2 Redis cache clusters so automatic failover and Multi-AZ are enabled."
+  }
 }
 
 variable "allowed_cidr_blocks" {
@@ -99,4 +116,3 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
-

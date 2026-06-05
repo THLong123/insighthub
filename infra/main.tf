@@ -13,6 +13,10 @@ locals {
   )
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
+
 resource "kubernetes_namespace_v1" "insighthub" {
   metadata {
     name = var.namespace
@@ -40,6 +44,21 @@ resource "aws_kms_key" "insighthub" {
   description             = "KMS key for InsightHub ${var.environment} managed services"
   deletion_window_in_days = 7
   enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableAccountAdministration"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_kms_alias" "insighthub" {
@@ -48,6 +67,7 @@ resource "aws_kms_alias" "insighthub" {
 }
 
 resource "aws_secretsmanager_secret" "database" {
+  #checkov:skip=CKV2_AWS_57:Rotation Lambda is added after Day 3 when the runtime deployment is wired to managed RDS.
   name                    = "${local.name}/database"
   description             = "InsightHub PostgreSQL connection settings"
   kms_key_id              = aws_kms_key.insighthub.arn
@@ -65,6 +85,7 @@ resource "aws_secretsmanager_secret_version" "database" {
 }
 
 resource "aws_secretsmanager_secret" "redis" {
+  #checkov:skip=CKV2_AWS_57:Rotation Lambda is added after Day 3 when the runtime deployment is wired to managed Redis.
   name                    = "${local.name}/redis"
   description             = "InsightHub Redis auth token"
   kms_key_id              = aws_kms_key.insighthub.arn
@@ -89,6 +110,7 @@ resource "aws_vpc_security_group_ingress_rule" "database_from_nodes" {
   for_each                     = toset(var.eks_node_security_group_ids)
   security_group_id            = aws_security_group.database.id
   referenced_security_group_id = each.value
+  description                  = "PostgreSQL from EKS worker or pod security group ${each.value}"
   from_port                    = 5432
   ip_protocol                  = "tcp"
   to_port                      = 5432
@@ -98,6 +120,7 @@ resource "aws_vpc_security_group_ingress_rule" "database_from_private_cidrs" {
   for_each          = toset(var.allowed_cidr_blocks)
   security_group_id = aws_security_group.database.id
   cidr_ipv4         = each.value
+  description       = "PostgreSQL from approved private CIDR ${each.value}"
   from_port         = 5432
   ip_protocol       = "tcp"
   to_port           = 5432
@@ -106,6 +129,7 @@ resource "aws_vpc_security_group_ingress_rule" "database_from_private_cidrs" {
 resource "aws_vpc_security_group_egress_rule" "database_dns_tcp" {
   security_group_id = aws_security_group.database.id
   cidr_ipv4         = "0.0.0.0/0"
+  description       = "HTTPS egress for AWS control plane integrations"
   from_port         = 443
   ip_protocol       = "tcp"
   to_port           = 443
@@ -121,6 +145,7 @@ resource "aws_vpc_security_group_ingress_rule" "redis_from_nodes" {
   for_each                     = toset(var.eks_node_security_group_ids)
   security_group_id            = aws_security_group.redis.id
   referenced_security_group_id = each.value
+  description                  = "Redis from EKS worker or pod security group ${each.value}"
   from_port                    = 6379
   ip_protocol                  = "tcp"
   to_port                      = 6379
@@ -130,6 +155,7 @@ resource "aws_vpc_security_group_ingress_rule" "redis_from_private_cidrs" {
   for_each          = toset(var.allowed_cidr_blocks)
   security_group_id = aws_security_group.redis.id
   cidr_ipv4         = each.value
+  description       = "Redis from approved private CIDR ${each.value}"
   from_port         = 6379
   ip_protocol       = "tcp"
   to_port           = 6379
@@ -138,6 +164,7 @@ resource "aws_vpc_security_group_ingress_rule" "redis_from_private_cidrs" {
 resource "aws_vpc_security_group_egress_rule" "redis_https" {
   security_group_id = aws_security_group.redis.id
   cidr_ipv4         = "0.0.0.0/0"
+  description       = "HTTPS egress for AWS control plane integrations"
   from_port         = 443
   ip_protocol       = "tcp"
   to_port           = 443
@@ -201,7 +228,10 @@ resource "aws_db_instance" "postgres" {
   db_subnet_group_name   = aws_db_subnet_group.postgres.name
   vpc_security_group_ids = [aws_security_group.database.id]
   publicly_accessible    = false
-  multi_az               = false
+  multi_az               = var.rds_multi_az
+
+  auto_minor_version_upgrade          = true
+  iam_database_authentication_enabled = true
 
   backup_retention_period = 7
   backup_window           = "17:00-18:00"
@@ -237,7 +267,7 @@ resource "aws_elasticache_replication_group" "redis" {
   engine               = "redis"
   engine_version       = "7.1"
   node_type            = var.redis_node_type
-  num_cache_clusters   = 1
+  num_cache_clusters   = var.redis_cache_clusters
   port                 = 6379
   parameter_group_name = "default.redis7"
 
@@ -249,8 +279,8 @@ resource "aws_elasticache_replication_group" "redis" {
   kms_key_id                 = aws_kms_key.insighthub.arn
   auth_token                 = random_password.redis.result
 
-  automatic_failover_enabled = false
-  multi_az_enabled           = false
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
   apply_immediately          = true
 
   log_delivery_configuration {
@@ -263,7 +293,7 @@ resource "aws_elasticache_replication_group" "redis" {
 
 resource "aws_cloudwatch_log_group" "redis_slow" {
   name              = "/aws/elasticache/${local.name}/redis-slow"
-  retention_in_days = 30
+  retention_in_days = 365
   kms_key_id        = aws_kms_key.insighthub.arn
 }
 

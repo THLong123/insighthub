@@ -16,6 +16,7 @@
 - Existing EKS cluster and VPC are inputs.
 - Terraform creates the InsightHub namespace, IRSA ServiceAccount, RDS PostgreSQL 16, ElastiCache Redis, KMS key, Secrets Manager secrets, and least-privilege IAM policy.
 - RDS and Redis are private-only, encrypted, and reachable only from EKS node or pod security groups.
+- RDS and Redis use Multi-AZ defaults so the Checkov policy gate stays green. Lower-cost single-AZ labs require an explicit reviewed override.
 
 ## CI/CD Scope
 
@@ -36,4 +37,3 @@
 ## Required GitHub Variables
 
 - `AWS_REGION` defaults to `ap-southeast-1` if not set.
-
