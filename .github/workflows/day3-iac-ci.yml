@@ -90,13 +90,17 @@ jobs:
         working-directory: web
         run: npm run build
 
-  scan:
-    name: scan
+  terraform:
+    name: terraform fmt lint scan plan
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
     steps:
       - uses: actions/checkout@v4
 
       - name: Trivy config scan
+        working-directory: ${{ github.workspace }}
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/repo" \
@@ -106,15 +110,6 @@ jobs:
             --exit-code 0 \
             --hide-progress \
             /repo
-
-  terraform:
-    name: terraform fmt lint scan plan
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: infra
-    steps:
-      - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -164,7 +159,6 @@ jobs:
     needs:
       - build
       - test
-      - scan
       - terraform
     if: github.ref == 'refs/heads/main'
     steps:
