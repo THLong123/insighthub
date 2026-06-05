@@ -1,0 +1,35 @@
+#! web-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: web
+    namespace: insighthub-main
+    labels:
+        com.docker.compose.project: insighthub-main
+        com.docker.compose.service: web
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: insighthub-main
+            com.docker.compose.service: web
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: insighthub-main
+                com.docker.compose.service: web
+                com.docker.compose.network.default: "true"
+        spec:
+            containers:
+                - name: web
+                  image: insighthub-main-web
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: API_INTERNAL_URL
+                      value: "http://api:8000"
+                  ports:
+                    - name: web-3000
+                      containerPort: 3000

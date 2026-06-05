@@ -1,0 +1,71 @@
+#! api-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: api
+    namespace: insighthub-main
+    labels:
+        com.docker.compose.project: insighthub-main
+        com.docker.compose.service: api
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: insighthub-main
+            com.docker.compose.service: api
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: insighthub-main
+                com.docker.compose.service: api
+                com.docker.compose.network.default: "true"
+        spec:
+            containers:
+                - name: api
+                  image: insighthub-main-api
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: ANTHROPIC_API_KEY
+                      value: ""
+                    - name: ANTHROPIC_CHAT_MODEL
+                      value: "claude-sonnet-4-6"
+                    - name: DATABASE_URL
+                      value: "postgresql://insighthub:insighthub@postgres:5432/insighthub"
+                    - name: EMBEDDING_DIM
+                      value: "1024"
+                    - name: EMBEDDING_MODEL
+                      value: ""
+                    - name: EMBEDDING_PROVIDER
+                      value: "gemini"
+                    - name: GEMINI_API_KEY
+                      value: "AIzaSyBPO7SHrOxcIAPtvAQ989Q4PUClgp93xY0"
+                    - name: GEMINI_CHAT_MODEL
+                      value: "gemini-3-flash-preview"
+                    - name: GEMINI_EMBEDDING_MODEL
+                      value: "gemini-embedding-2"
+                    - name: LLM_MAX_TOKENS
+                      value: "1024"
+                    - name: LLM_MODEL
+                      value: ""
+                    - name: LLM_PROVIDER
+                      value: "gemini"
+                    - name: OLLAMA_BASE_URL
+                      value: "http://ollama:11434"
+                    - name: OLLAMA_CHAT_MODEL
+                      value: "deepseek-r1:14b"
+                    - name: OLLAMA_EMBEDDING_MODEL
+                      value: "deepseek-r1:14b"
+                    - name: OPENAI_API_KEY
+                      value: ""
+                    - name: OPENAI_EMBEDDING_MODEL
+                      value: "text-embedding-3-small"
+                    - name: VOYAGE_API_KEY
+                      value: ""
+                    - name: VOYAGE_EMBEDDING_MODEL
+                      value: "voyage-3.5"
+                  ports:
+                    - name: api-8000
+                      containerPort: 8000

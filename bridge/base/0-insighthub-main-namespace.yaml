@@ -1,0 +1,8 @@
+#! 0-insighthub-main-namespace.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: insighthub-main
+    labels:
+        com.docker.compose.project: insighthub-main

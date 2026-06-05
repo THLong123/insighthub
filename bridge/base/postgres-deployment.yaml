@@ -1,0 +1,62 @@
+#! postgres-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: postgres
+    namespace: insighthub-main
+    labels:
+        com.docker.compose.project: insighthub-main
+        com.docker.compose.service: postgres
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: insighthub-main
+            com.docker.compose.service: postgres
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: insighthub-main
+                com.docker.compose.service: postgres
+                com.docker.compose.network.default: "true"
+        spec:
+            containers:
+                - name: postgres
+                  image: pgvector/pgvector:0.8.2-pg16
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: POSTGRES_DB
+                      value: "insighthub"
+                    - name: POSTGRES_PASSWORD
+                      value: "insighthub"
+                    - name: POSTGRES_USER
+                      value: "insighthub"
+                  livenessProbe:
+                    exec:
+                        command:
+                            - /bin/sh
+                            - -c
+                            - pg_isready -U insighthub
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 5
+                  ports:
+                    - name: postgres-5432
+                      containerPort: 5432
+                  volumeMounts:
+                    - name: var-lib-postgresql-data
+                      mountPath: /var/lib/postgresql/data
+                    - name: docker-entrypoint-initdb-d-init-sql
+                      mountPath: /docker-entrypoint-initdb.d/init.sql
+                      readOnly: true
+            volumes:
+                - name: var-lib-postgresql-data
+                  persistentVolumeClaim:
+                    claimName: postgres-pgdata
+                - name: docker-entrypoint-initdb-d-init-sql
+                  hostPath:
+                    path: D:\HOC DEVOPS\insighthub-main\infra\db\init.sql
+                  readOnly: true

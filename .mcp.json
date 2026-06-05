@@ -1,0 +1,49 @@
+{
+  "_instructions": [
+    "Day 2 MCP config for InsightHub. Keep credentials in local tool config/env, not in this file.",
+    "Filesystem MCP is allow-listed to this project directory only.",
+    "Kubernetes MCP uses a dedicated read-only kubeconfig generated from infra/k8s/mcp-readonly.",
+    "AWS MCP uses AWS_PROFILE=mcp-readonly; do not use an admin profile.",
+    "Run: claude.cmd mcp list"
+  ],
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.1.14",
+        "D:\\HOC DEVOPS\\insighthub-main"
+      ],
+      "env": {}
+    },
+    "docker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@swartdraak/docker-mcp-server@2.0.0"
+      ],
+      "env": {}
+    },
+    "kubernetes-mcp-server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "kubernetes-mcp-server@0.0.62",
+        "--read-only"
+      ],
+      "env": {
+        "KUBECONFIG": "C:\\Users\\admin\\.kube\\mcp-viewer.kubeconfig"
+      }
+    },
+    "prometheus": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "prometheus-mcp-server@1.0.1"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "http://localhost:9090"
+      }
+    }
+  }
+}
