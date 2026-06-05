@@ -41,7 +41,11 @@ spec:
                     - name: EMBEDDING_PROVIDER
                       value: "gemini"
                     - name: GEMINI_API_KEY
-                      value: "AIzaSyBPO7SHrOxcIAPtvAQ989Q4PUClgp93xY0"
+                      valueFrom:
+                        secretKeyRef:
+                          name: insighthub-secrets
+                          key: GEMINI_API_KEY
+                          optional: true
                     - name: GEMINI_CHAT_MODEL
                       value: "gemini-3-flash-preview"
                     - name: GEMINI_EMBEDDING_MODEL
@@ -59,11 +63,19 @@ spec:
                     - name: OLLAMA_EMBEDDING_MODEL
                       value: "deepseek-r1:14b"
                     - name: OPENAI_API_KEY
-                      value: ""
+                      valueFrom:
+                        secretKeyRef:
+                          name: insighthub-secrets
+                          key: OPENAI_API_KEY
+                          optional: true
                     - name: OPENAI_EMBEDDING_MODEL
                       value: "text-embedding-3-small"
                     - name: VOYAGE_API_KEY
-                      value: ""
+                      valueFrom:
+                        secretKeyRef:
+                          name: insighthub-secrets
+                          key: VOYAGE_API_KEY
+                          optional: true
                     - name: VOYAGE_EMBEDDING_MODEL
                       value: "voyage-3.5"
                   ports:

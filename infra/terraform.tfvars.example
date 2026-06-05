@@ -1,0 +1,15 @@
+aws_region                  = "ap-southeast-1"
+environment                 = "dev"
+name_prefix                 = "insighthub"
+vpc_id                      = "vpc-xxxxxxxxxxxxxxxxx"
+private_subnet_ids          = ["subnet-aaaaaaaaaaaaaaaaa", "subnet-bbbbbbbbbbbbbbbbb"]
+eks_node_security_group_ids = ["sg-xxxxxxxxxxxxxxxxx"]
+eks_oidc_provider_arn       = "arn:aws:iam::123456789012:oidc-provider/oidc.eks.ap-southeast-1.amazonaws.com/id/EXAMPLE"
+eks_oidc_issuer_url         = "https://oidc.eks.ap-southeast-1.amazonaws.com/id/EXAMPLE"
+kubeconfig_path             = "~/.kube/config"
+kubeconfig_context          = "arn:aws:eks:ap-southeast-1:123456789012:cluster/insighthub-lab"
+
+tags = {
+  Owner = "student"
+}
+

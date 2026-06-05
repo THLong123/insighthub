@@ -1,0 +1,207 @@
+name: Day 3 IaC and Delivery
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - day3-terraform
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository }}
+  HAS_AWS: ${{ secrets.AWS_ROLE_ARN != '' && secrets.EKS_CLUSTER_NAME != '' }}
+
+jobs:
+  build:
+    name: build ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: ./api
+            file: ./api/Dockerfile
+          - image: web
+            context: ./web
+            file: ./web/Dockerfile
+          - image: ingestion-worker
+            context: .
+            file: ./ingestion-worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install API dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Compile Python sources
+        run: python -m compileall api ingestion-worker
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+
+  scan:
+    name: scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: ./api
+            file: ./api/Dockerfile
+          - image: web
+            context: ./web
+            file: ./web/Dockerfile
+          - image: ingestion-worker
+            context: .
+            file: ./ingestion-worker/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: ${{ matrix.file }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  terraform:
+    name: terraform fmt lint scan plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.55.1
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: tflint
+        run: tflint --init && tflint --recursive
+
+      - name: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          quiet: true
+          soft_fail_on: LOW,MEDIUM
+
+      - name: terraform init
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: Configure AWS credentials
+        if: env.HAS_AWS == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: terraform plan
+        if: env.HAS_AWS == 'true'
+        run: terraform plan -input=false -out=tfplan
+
+      - name: terraform plan skipped
+        if: env.HAS_AWS != 'true'
+        run: echo "Skipping terraform plan because AWS_ROLE_ARN or EKS_CLUSTER_NAME is not configured."
+
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - test
+      - scan
+      - terraform
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy skipped
+        if: env.HAS_AWS != 'true'
+        run: echo "Skipping deploy because AWS_ROLE_ARN or EKS_CLUSTER_NAME is not configured."
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: env.HAS_AWS == 'true'
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+
+      - name: Configure kubeconfig
+        if: env.HAS_AWS == 'true'
+        run: aws eks update-kubeconfig --name "${{ secrets.EKS_CLUSTER_NAME }}" --region "${{ vars.AWS_REGION || 'ap-southeast-1' }}"
+
+      - name: Create runtime secret
+        if: env.HAS_AWS == 'true'
+        run: |
+          kubectl -n insighthub-main create secret generic insighthub-secrets \
+            --from-literal=GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            --from-literal=OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            --from-literal=VOYAGE_API_KEY="${{ secrets.VOYAGE_API_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Kubernetes manifests
+        if: env.HAS_AWS == 'true'
+        run: kubectl apply -k bridge/overlays/desktop
