@@ -97,14 +97,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: config
-          severity: HIGH,CRITICAL
-          exit-code: "0"
-          hide-progress: true
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            aquasec/trivy:0.58.1 fs \
+            --scanners config \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            --hide-progress \
+            /repo
 
   terraform:
     name: terraform fmt lint scan plan
