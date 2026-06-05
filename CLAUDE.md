@@ -1,52 +1,93 @@
-# CLAUDE.md — TEMPLATE
+# InsightHub Project Guide
 
-> Day 1: học viên hoàn thiện file này. Đây chỉ là khung gợi ý.
-> CLAUDE.md là "bộ nhớ dự án" — Claude Code đọc file này mỗi phiên làm việc,
-> nên context tốt = AI agent làm việc chính xác hơn.
+## Du an
 
-## Dự án
+InsightHub la ung dung RAG Notebook. Nguoi dung upload tai lieu `.txt`, `.md`
+hoac `.pdf`, sau do hoi dap va tao tom tat dua tren noi dung da ingest.
 
-InsightHub — RAG Notebook. Người dùng upload tài liệu, hỏi đáp dựa trên tài liệu.
+Day 1 da refactor ingestion tu xu ly dong bo trong API sang Redis queue va ARQ
+worker. API tra HTTP `202 Accepted` ngay sau khi enqueue job.
 
-## Kiến trúc
+## Kien truc
 
-<!-- Học viên điền: mô tả các service, mối quan hệ. Cập nhật sau refactor Day 1. -->
+- `web`: Next.js 15 App Router, giao dien upload va chat, chay tai port `3000`.
+- `api`: FastAPI gateway, chay tai port `8000`. API luu metadata tai lieu voi
+  status `pending`, enqueue ARQ job vao Redis, phuc vu chat va metrics.
+- `ingestion-worker`: ARQ worker doc job tu Redis, extract text, chunk, tao
+  embedding va ghi chunks vao PostgreSQL. Worker co the retry an toan.
+- `redis`: Redis 7, lam job queue cho ingestion bat dong bo.
+- `postgres`: PostgreSQL 16 voi pgvector `0.8.2`, luu documents, chunks va
+  vector embeddings.
+- `ollama`: service tuy chon khi chay profile `ollama`, dung cho LLM va
+  embedding local.
 
-- web: Next.js 15, App Router, standalone output
-- api: FastAPI, psycopg3 + pgvector
-- ingestion-worker: <!-- TRỐNG ở v0 — mô tả sau khi tách Day 1 -->
-- redis: <!-- thêm Day 1 -->
-- postgres: PostgreSQL 16 + pgvector 0.8.2
+Luong upload tai lieu:
 
-## Quy ước code
-
-<!-- Học viên điền, ví dụ: -->
-- Python: tuân theo PEP 8, dùng type hints
-- Commit message: conventional commits (feat:, fix:, refactor:...)
-- Không hardcode secrets — luôn dùng biến môi trường
-
-## Lệnh thường dùng
-
-```bash
-docker compose up --build      # chạy toàn bộ stack
-docker compose logs -f api     # xem log api
-# <học viên bổ sung khi học các buổi sau>
+```text
+web -> POST /documents -> api -> documents(status=pending)
+                              -> Redis ARQ queue
+                              -> ingestion-worker
+                              -> extract -> chunk -> embed
+                              -> PostgreSQL documents(status=ready) + chunks
 ```
 
-## Lưu ý quan trọng cho AI agent
+## Quy uoc code
 
-<!-- Học viên điền các ràng buộc, ví dụ: -->
-- EMBEDDING_DIM phải khớp VECTOR(n) trong infra/db/init.sql
-- pgvector phải >= 0.8.2 (lý do bảo mật)
-- process_document() phải idempotent (worker có thể retry)
+- Python tuan theo PEP 8, dung type hints cho code moi.
+- FastAPI router dat trong `api/app/routers/`.
+- Logic nghiep vu dung chung dat trong `api/app/services/`.
+- Cau hinh runtime doc tu bien moi truong qua `api/app/core/config.py`.
+- Khong hardcode API key, token hoac secret trong source code.
+- Commit message dung conventional commits: `feat:`, `fix:`, `refactor:`,
+  `docs:`, `test:`.
+- Khong sua thu muc `insighthub/` long ben trong repo khi lam artifact chinh;
+  source dang lam viec nam tai thu muc goc.
 
-## Việc đang làm / TODO
+## Lenh thuong dung
 
-<!-- Học viên cập nhật theo tiến độ 7 ngày -->
-- [ ] Day 1: tách ingestion-worker, thêm Redis
-- [ ] Day 2: cấu hình MCP servers
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api
+docker compose logs -f ingestion-worker
+docker compose down
+```
+
+Kiem tra Day 1 tren Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/verify-day-1.ps1
+```
+
+Kiem tra tren Linux hoac Git Bash:
+
+```bash
+bash scripts/verify-day-1.sh
+```
+
+## Luu y quan trong cho AI agent
+
+- `EMBEDDING_DIM` phai khop voi `VECTOR(n)` trong `infra/db/init.sql`. Gia tri
+  mac dinh hien tai la `1024`.
+- pgvector phai giu phien ban `>= 0.8.2`.
+- `process_document()` phai idempotent vi ARQ worker co the retry job. Ham hien
+  xoa chunks cu cua document truoc khi insert lai.
+- Upload thanh cong tra HTTP `202` voi status `pending`, khong cho status
+  `ready` ngay lap tuc.
+- API va worker phai dung cung `DATABASE_URL`, `REDIS_URL` va cau hinh
+  embedding provider.
+- Queue depth metric duoc cap nhat qua `insighthub_ingestion_queue_depth`.
+- Feature AI Day 1 la `GET /documents/{document_id}/summary`; chi tom tat tai
+  lieu da co status `ready`.
+- `scripts/smoke-test.sh` la smoke test v0 cu. Uu tien
+  `scripts/verify-day-1.ps1` de verify ingestion async tren Windows.
+
+## Viec dang lam / TODO
+
+- [x] Day 1: tach ingestion-worker, them Redis, them summary endpoint va prompt log
+- [ ] Day 2: cau hinh MCP servers
 - [ ] Day 3: Terraform + CI/CD pipeline
 - [ ] Day 4: observability + anomaly detection
 - [ ] Day 5: ChatOps bot
 - [ ] Day 6: security hardening + cost monitoring
-- [ ] Day 7: hoàn thiện + demo
+- [ ] Day 7: hoan thien + demo

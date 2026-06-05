@@ -7,11 +7,12 @@ Sau refactor sẽ: lưu metadata → enqueue ARQ job → trả về 202 ngay.
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
 from app.core.db import get_conn
 from app.core.metrics import documents_total, ingestion_errors_total
-from app.services.ingestion import ingest_document_sync
+from app.core.queue import refresh_ingestion_queue_depth
+from app.services.llm import generate
 
 logger = logging.getLogger("insighthub.routers.documents")
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -20,8 +21,8 @@ ALLOWED_EXT = (".txt", ".md", ".pdf")
 MAX_SIZE_MB = 10
 
 
-@router.post("", status_code=201)
-async def upload_document(file: UploadFile):
+@router.post("", status_code=202)
+async def upload_document(request: Request, file: UploadFile):
     if not file.filename or not file.filename.lower().endswith(ALLOWED_EXT):
         raise HTTPException(400, f"Chỉ chấp nhận: {', '.join(ALLOWED_EXT)}")
 
@@ -37,19 +38,29 @@ async def upload_document(file: UploadFile):
         ).fetchone()
         document_id = row[0]
 
-    # ⚠️  ĐIỂM YẾU v0: ingest đồng bộ — request bị block tới khi xong.
-    # Day 1: thay bằng redis.enqueue_job("ingest", document_id, filename, content)
     try:
-        chunk_count = ingest_document_sync(document_id, file.filename, content)
+        job = await request.app.state.redis.enqueue_job(
+            "ingest_document",
+            document_id,
+            file.filename,
+            content,
+        )
+        await refresh_ingestion_queue_depth(request.app.state.redis)
     except Exception as exc:  # noqa: BLE001
         ingestion_errors_total.inc()
-        raise HTTPException(500, f"Ingestion thất bại: {exc}") from exc
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE documents SET status = 'failed' WHERE id = %s",
+                (document_id,),
+            )
+        raise HTTPException(503, f"Không enqueue được ingestion job: {exc}") from exc
 
     return {
         "id": document_id,
         "filename": file.filename,
-        "status": "ready",
-        "chunk_count": chunk_count,
+        "status": "pending",
+        "chunk_count": 0,
+        "job_id": job.job_id if job else None,
     }
 
 
@@ -78,6 +89,55 @@ async def list_documents():
         }
         for r in rows
     ]
+
+
+@router.get("/{document_id}/summary")
+async def summarize_document(document_id: int):
+    with get_conn() as conn:
+        document = conn.execute(
+            "SELECT id, filename, status FROM documents WHERE id = %s",
+            (document_id,),
+        ).fetchone()
+        if document is None:
+            raise HTTPException(404, "Khong tim thay tai lieu")
+        if document[2] != "ready":
+            raise HTTPException(409, "Tai lieu chua san sang de tom tat")
+
+        rows = conn.execute(
+            """
+            SELECT chunk_text
+            FROM chunks
+            WHERE document_id = %s
+            ORDER BY id
+            LIMIT 8
+            """,
+            (document_id,),
+        ).fetchall()
+
+    if not rows:
+        return {
+            "id": document[0],
+            "filename": document[1],
+            "summary": "Tai lieu nay chua co noi dung de tom tat.",
+            "sources": [document[1]],
+        }
+
+    contexts = [
+        {"source": document[1], "chunk_text": row[0]}
+        for row in rows
+    ]
+    result = generate(
+        "Tom tat tai lieu nay trong 3-5 gach dau dong ngan gon.",
+        contexts,
+    )
+
+    return {
+        "id": document[0],
+        "filename": document[1],
+        "summary": result["answer"],
+        "sources": result["sources"],
+        "usage": result["usage"],
+    }
 
 
 @router.delete("/{document_id}", status_code=204)

@@ -1,12 +1,7 @@
-# InsightHub — docker-compose v0
+# InsightHub — docker-compose
 #
-# ⚠️ ĐÂY LÀ v0 CỐ Ý: chỉ 3 service core (web + api + postgres).
-# - KHÔNG có redis
-# - KHÔNG có ingestion-worker
-# - api xử lý ingestion ĐỒNG BỘ
-#
-# Day 1: học viên refactor — thêm redis + ingestion-worker.
-# Khi đó dùng docker-compose.full.yml (đáp án trong reference-solutions).
+# Day 1 refactor: api enqueue ingestion jobs to Redis, ingestion-worker
+# consumes ARQ jobs and writes chunks/embeddings to Postgres.
 #
 # Chạy v0:                     docker compose up --build
 # Chạy v0 + Ollama on-prem:    docker compose --profile ollama up --build
@@ -35,6 +30,7 @@ services:
     build: ./api
     environment:
       DATABASE_URL: postgresql://insighthub:insighthub@postgres:5432/insighthub
+      REDIS_URL: redis://redis:6379/0
       # ---- LLM ----
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
@@ -64,6 +60,51 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: ingestion-worker/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://insighthub:insighthub@postgres:5432/insighthub
+      REDIS_URL: redis://redis:6379/0
+      # ---- LLM ----
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+      LLM_MODEL: ${LLM_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CHAT_MODEL: ${GEMINI_CHAT_MODEL:-gemini-3-flash-preview}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_CHAT_MODEL: ${ANTHROPIC_CHAT_MODEL:-claude-sonnet-4-6}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-deepseek-r1:14b}
+      # ---- Embedding ----
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-2}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      VOYAGE_EMBEDDING_MODEL: ${VOYAGE_EMBEDDING_MODEL:-voyage-3.5}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-deepseek-r1:14b}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
     build: ./web
