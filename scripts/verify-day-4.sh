@@ -58,7 +58,7 @@ RCA_COUNT=$(ls rca-reports/incident-*.json 2>/dev/null | wc -l)
 if [ "$RCA_COUNT" -ge 3 ]; then
   ok "RCA reports: $RCA_COUNT"
   for f in rca-reports/incident-*.json; do
-    if jq -e '.top_hypotheses[0].evidence' "$f" >/dev/null 2>&1; then
+    if jq -e '(.top_hypotheses[0].evidence | length) > 0' "$f" >/dev/null 2>&1; then
       ok "$(basename "$f") has cited evidence"
     else
       ng "$(basename "$f") is missing hypothesis evidence"
