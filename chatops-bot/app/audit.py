@@ -1,37 +1,36 @@
-"""
-InsightHub ChatOps Bot — Audit log (SKELETON)
+"""Append-only NDJSON audit log for ChatOps tool calls."""
 
-Mọi tool call của bot PHẢI được ghi audit. Đây là yêu cầu bảo mật cốt lõi:
-khi AI agent có quyền chạm vào hạ tầng, phải có dấu vết kiểm toán.
+from __future__ import annotations
 
-TODO Day 5: hoàn thiện theo gợi ý dưới.
-"""
 import json
-import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-logger = logging.getLogger("chatops-bot.audit")
+
+def _default_audit_path() -> Path:
+    configured = os.getenv("AUDIT_LOG_PATH")
+    if configured:
+        return Path(configured)
+
+    if Path.cwd().name == "chatops-bot":
+        return Path("chatops-audit.log")
+    return Path("chatops-bot") / "chatops-audit.log"
+
+
+AUDIT_LOG_PATH = _default_audit_path()
 
 
 def log_tool_call(
     user: str,
     tool: str,
-    args: dict,
+    args: dict[str, Any],
     result_summary: str,
     approved: bool = True,
-) -> None:
-    """
-    Ghi 1 dòng audit cho mỗi tool call.
+) -> dict[str, Any]:
+    """Write one audit record and return it for tests/observability."""
 
-    TODO Day 5:
-    - Ghi ra file hoặc stdout dạng structured JSON (mỗi dòng 1 record).
-    - Trong production thật: đẩy sang log aggregator (Loki...).
-    - Trường tối thiểu: timestamp, user, tool, args, kết quả, approved.
-
-    Ví dụ record:
-      {"ts": "...", "user": "U123", "tool": "kubectl_get_pods",
-       "args": {...}, "result": "5 pods Running", "approved": true}
-    """
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "user": user,
@@ -40,5 +39,10 @@ def log_tool_call(
         "result": result_summary,
         "approved": approved,
     }
-    # TODO: thay bằng ghi file / gửi log aggregator
-    logger.info("AUDIT %s", json.dumps(record, ensure_ascii=False))
+
+    AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with AUDIT_LOG_PATH.open("a", encoding="utf-8") as fp:
+        fp.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+        fp.write("\n")
+
+    return record
