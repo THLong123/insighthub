@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: insighthub-api
+  namespace: insighthub-main
+  labels:
+    app.kubernetes.io/name: insighthub
+    app.kubernetes.io/component: api
+    release: kube-prom-stack
+spec:
+  selector:
+    matchLabels:
+      com.docker.compose.service: api
+  namespaceSelector:
+    matchNames:
+      - insighthub-main
+  endpoints:
+    - port: api-8000
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+

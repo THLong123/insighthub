@@ -1,0 +1,123 @@
+{
+  "uid": "insighthub-day4",
+  "title": "InsightHub Day 4 AIOps",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request Rate",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 7},
+      "targets": [{"expr": "job:insighthub_request_rate:rate5m", "legendFormat": "requests/sec"}]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Error Rate",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 7},
+      "targets": [
+        {"expr": "job:insighthub_error_rate:rate5m", "legendFormat": "5xx rate"},
+        {"expr": "job:insighthub_error_rate:upper_band", "legendFormat": "upper band"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "RAG Latency p95",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 7},
+      "targets": [{"expr": "job:insighthub_rag_latency_p95:5m", "legendFormat": "p95 seconds"}]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "LLM Latency + Anomaly Band",
+      "gridPos": {"x": 0, "y": 7, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "job:insighthub_llm_call_latency_seconds:avg5m", "legendFormat": "avg5m"},
+        {"expr": "job:insighthub_llm_latency_baseline", "legendFormat": "baseline30m"},
+        {"expr": "job:insighthub_llm_latency_upper_band", "legendFormat": "upper band"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Ingestion Queue Depth + Anomaly Band",
+      "gridPos": {"x": 12, "y": 7, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "insighthub_ingestion_queue_depth", "legendFormat": "queue depth"},
+        {"expr": "job:insighthub_queue_depth:baseline30m", "legendFormat": "baseline30m"},
+        {"expr": "job:insighthub_queue_depth:upper_band", "legendFormat": "upper band"}
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Ready Documents",
+      "gridPos": {"x": 0, "y": 15, "w": 6, "h": 5},
+      "targets": [{"expr": "insighthub_documents_total{status=\"ready\"}", "legendFormat": "ready"}]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Failed Documents",
+      "gridPos": {"x": 6, "y": 15, "w": 6, "h": 5},
+      "targets": [{"expr": "insighthub_documents_total{status=\"failed\"}", "legendFormat": "failed"}]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Ingestion Error Rate",
+      "gridPos": {"x": 12, "y": 15, "w": 6, "h": 5},
+      "targets": [{"expr": "rate(insighthub_ingestion_errors_total[5m])", "legendFormat": "errors/sec"}]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "LLM Token Rate",
+      "gridPos": {"x": 18, "y": 15, "w": 6, "h": 5},
+      "targets": [{"expr": "sum(rate(insighthub_llm_tokens_total[5m])) by (direction)", "legendFormat": "{{direction}}"}]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Embedding Token Rate",
+      "gridPos": {"x": 0, "y": 20, "w": 8, "h": 6},
+      "targets": [{"expr": "rate(insighthub_embedding_tokens_total[5m])", "legendFormat": "tokens/sec"}]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Pod CPU",
+      "gridPos": {"x": 8, "y": 20, "w": 8, "h": 6},
+      "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"insighthub-main\", container!=\"\"}[5m])) by (pod)", "legendFormat": "{{pod}}"}]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Pod Memory",
+      "gridPos": {"x": 16, "y": 20, "w": 8, "h": 6},
+      "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=\"insighthub-main\", container!=\"\"}) by (pod)", "legendFormat": "{{pod}}"}]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Target Up",
+      "gridPos": {"x": 0, "y": 26, "w": 12, "h": 6},
+      "targets": [{"expr": "up{namespace=\"insighthub-main\"}", "legendFormat": "{{job}}"}]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Approx LLM Cost Signal",
+      "gridPos": {"x": 12, "y": 26, "w": 12, "h": 6},
+      "targets": [{"expr": "job:insighthub_token_rate:rate5m", "legendFormat": "token rate"}]
+    }
+  ]
+}
+

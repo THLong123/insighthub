@@ -1,0 +1,93 @@
+groups:
+  - name: insighthub.recording
+    interval: 30s
+    rules:
+      - record: job:insighthub_request_rate:rate5m
+        expr: sum(rate(insighthub_http_requests_total[5m]))
+
+      - record: job:insighthub_error_rate:rate5m
+        expr: sum(rate(insighthub_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(insighthub_http_requests_total[5m])), 1)
+
+      - record: job:insighthub_error_rate:baseline30m
+        expr: avg_over_time(job:insighthub_error_rate:rate5m[30m:])
+
+      - record: job:insighthub_error_rate:upper_band
+        expr: job:insighthub_error_rate:baseline30m + 3 * stddev_over_time(job:insighthub_error_rate:rate5m[30m:])
+
+      - record: job:insighthub_rag_latency_p95:5m
+        expr: histogram_quantile(0.95, sum(rate(insighthub_rag_query_latency_seconds_bucket[5m])) by (le))
+
+      - record: job:insighthub_llm_call_latency_seconds:avg5m
+        expr: sum(rate(insighthub_llm_call_latency_seconds_sum[5m])) / clamp_min(sum(rate(insighthub_llm_call_latency_seconds_count[5m])), 1)
+
+      - record: job:insighthub_llm_latency_baseline
+        expr: avg_over_time(job:insighthub_llm_call_latency_seconds:avg5m[30m:])
+
+      - record: job:insighthub_llm_latency_upper_band
+        expr: job:insighthub_llm_latency_baseline + 3 * stddev_over_time(job:insighthub_llm_call_latency_seconds:avg5m[30m:])
+
+      - record: job:insighthub_queue_depth:avg5m
+        expr: avg_over_time(insighthub_ingestion_queue_depth[5m])
+
+      - record: job:insighthub_queue_depth:baseline30m
+        expr: avg_over_time(job:insighthub_queue_depth:avg5m[30m:])
+
+      - record: job:insighthub_queue_depth:upper_band
+        expr: job:insighthub_queue_depth:baseline30m + 3 * stddev_over_time(job:insighthub_queue_depth:avg5m[30m:])
+
+      - record: job:insighthub_token_rate:rate5m
+        expr: sum(rate(insighthub_llm_tokens_total[5m])) + sum(rate(insighthub_embedding_tokens_total[5m]))
+
+  - name: insighthub.alerts
+    interval: 30s
+    rules:
+      - alert: InsightHubLLMLatencyAnomaly
+        expr: job:insighthub_llm_call_latency_seconds:avg5m > job:insighthub_llm_latency_upper_band or job:insighthub_llm_call_latency_seconds:avg5m > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: insighthub-api
+        annotations:
+          summary: InsightHub LLM latency anomaly detected
+          description: LLM avg latency is above its 30m 3-sigma band or the lab fallback threshold.
+
+      - alert: InsightHubQueueDepthAnomaly
+        expr: job:insighthub_queue_depth:avg5m > job:insighthub_queue_depth:upper_band + 1 or insighthub_ingestion_queue_depth > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: ingestion-worker
+        annotations:
+          summary: InsightHub ingestion queue backlog anomaly
+          description: Queue depth is above its 30m 3-sigma band or the lab fallback threshold.
+
+      - alert: InsightHubErrorRateAnomaly
+        expr: job:insighthub_error_rate:rate5m > job:insighthub_error_rate:upper_band or job:insighthub_error_rate:rate5m > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          service: insighthub-api
+        annotations:
+          summary: InsightHub API error-rate anomaly
+          description: 5xx rate is above baseline or above the lab fallback threshold.
+
+      - alert: InsightHubRAGLatencyHigh
+        expr: job:insighthub_rag_latency_p95:5m > 10
+        for: 3m
+        labels:
+          severity: warning
+          service: insighthub-api
+        annotations:
+          summary: InsightHub RAG p95 latency is high
+          description: End-to-end RAG p95 latency has been above 10s for 3 minutes.
+
+      - alert: InsightHubMetricsTargetDown
+        expr: up{job=~".*insighthub.*|.*api.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: insighthub-api
+        annotations:
+          summary: InsightHub Prometheus target is down
+          description: Prometheus cannot scrape one of the InsightHub targets.
+
