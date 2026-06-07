@@ -1,0 +1,17 @@
+# Compatibility wrapper for Day 4 verification.
+# The canonical PrometheusRule is observability/prometheus-rules.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: insighthub-anomaly-rules
+  namespace: insighthub-main
+  labels:
+    app.kubernetes.io/name: insighthub
+    release: kube-prom-stack
+spec:
+  groups:
+    - name: insighthub.anomaly.alias
+      rules:
+        - record: job:insighthub_anomaly_ready
+          expr: job:insighthub_llm_latency_upper_band or job:insighthub_queue_depth:upper_band or job:insighthub_error_rate:upper_band
+

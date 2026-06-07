@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: insighthub-slack-webhook
+  namespace: insighthub-main
+type: Opaque
+stringData:
+  webhook-url: "<YOUR_SLACK_WEBHOOK_URL>"
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: insighthub-slack
+  namespace: insighthub-main
+  labels:
+    app.kubernetes.io/name: insighthub
+    release: kube-prom-stack
+spec:
+  route:
+    receiver: slack-alerts
+    groupBy:
+      - alertname
+      - service
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 2h
+    routes:
+      - receiver: slack-oncall
+        matchers:
+          - name: severity
+            value: critical
+            matchType: =
+  receivers:
+    - name: slack-alerts
+      slackConfigs:
+        - apiURL:
+            name: insighthub-slack-webhook
+            key: webhook-url
+          channel: "#insighthub-alerts"
+          sendResolved: true
+          title: "{{ .CommonLabels.alertname }} - {{ .CommonLabels.severity }}"
+          text: "{{ .CommonAnnotations.summary }}\n{{ .CommonAnnotations.description }}"
+    - name: slack-oncall
+      slackConfigs:
+        - apiURL:
+            name: insighthub-slack-webhook
+            key: webhook-url
+          channel: "#insighthub-oncall"
+          sendResolved: true
+          title: "CRITICAL {{ .CommonLabels.alertname }}"
+          text: "{{ .CommonAnnotations.summary }}\n{{ .CommonAnnotations.description }}"
+

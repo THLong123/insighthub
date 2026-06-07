@@ -1,0 +1,34 @@
+{
+  "incident_id": "incident-3",
+  "title": "API error burst",
+  "alert": "InsightHubErrorRateAnomaly",
+  "generated_at": "2026-06-07T09:20:00+07:00",
+  "top_hypotheses": [
+    {
+      "rank": 1,
+      "hypothesis": "A bad client or deployment path caused abnormal HTTP error traffic.",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "source": "prometheus",
+          "query": "job:insighthub_error_rate:rate5m",
+          "observation": "5xx/abnormal error-rate signal crossed the alert fallback threshold",
+          "timestamp": "2026-06-07T09:20:00+07:00"
+        },
+        {
+          "source": "kubernetes",
+          "query": "kubectl get events -n insighthub-main",
+          "observation": "no pod restart evidence is required before checking route/client errors",
+          "timestamp": "2026-06-07T09:20:00+07:00"
+        }
+      ]
+    }
+  ],
+  "root_cause": "The error pattern is consistent with bursty bad requests or an unhealthy API route.",
+  "recommended_actions": [
+    "Check request labels by endpoint and status.",
+    "Inspect API logs around the alert firing timestamp.",
+    "Add rate limiting or client-side retry controls if the source is external traffic."
+  ]
+}
+
