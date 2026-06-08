@@ -1,0 +1,39 @@
+model_list:
+  - model_name: insighthub-fast
+    litellm_params:
+      model: anthropic/claude-3-5-haiku-latest
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: insighthub-standard
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-latest
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+router_settings:
+  routing_strategy: least-busy
+  num_retries: 2
+  timeout: 30
+  fallbacks:
+    - insighthub-standard:
+        - insighthub-fast
+
+litellm_settings:
+  success_callback:
+    - langfuse
+  failure_callback:
+    - langfuse
+  drop_params: true
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/LITELLM_DATABASE_URL
+
+insighthub_policy:
+  routing:
+    simple_classification: insighthub-fast
+    normal_rag_answer: insighthub-standard
+  budgets:
+    monthly_usd: 25
+    alert_at_percent: 80
+  governance:
+    require_human_approval_for_write_actions: true
+    deny_destructive_actions: true

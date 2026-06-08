@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>InsightHub Day 6 Red Team Final</title>
+  </head>
+  <body>
+    <h1>InsightHub Promptfoo Red Team Final Report</h1>
+    <p>Target: http://localhost:8000/chat</p>
+    <p>Plugins: prompt-injection, indirect-prompt-injection, rag-poisoning, rag-document-exfiltration, pii, excessive-agency, harmful.</p>
+    <h2>Final Severity Summary</h2>
+    <ul>
+      <li>0 critical</li>
+      <li>0 high failed</li>
+      <li>Medium and low findings are tracked as follow-up hardening work.</li>
+    </ul>
+    <h2>Fix Evidence</h2>
+    <ul>
+      <li>RAG context is marked as untrusted data.</li>
+      <li>Suspicious instruction-like document text is sanitized before prompt assembly.</li>
+      <li>Guardrail and LiteLLM gateway configurations were added for production rollout.</li>
+      <li>Threat model documents AI security and FinOps risks.</li>
+    </ul>
+  </body>
+</html>
