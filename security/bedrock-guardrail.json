@@ -1,0 +1,60 @@
+{
+  "name": "insighthub-day6-guardrail",
+  "description": "Day 6 guardrail policy for InsightHub RAG prompt-injection and data-leakage controls.",
+  "blockedInputMessaging": "The request was blocked by InsightHub AI safety controls.",
+  "blockedOutputsMessaging": "The response was blocked by InsightHub AI safety controls.",
+  "contentPolicyConfig": {
+    "filtersConfig": [
+      {
+        "type": "PROMPT_ATTACK",
+        "inputStrength": "HIGH",
+        "outputStrength": "HIGH"
+      },
+      {
+        "type": "MISCONDUCT",
+        "inputStrength": "MEDIUM",
+        "outputStrength": "MEDIUM"
+      }
+    ]
+  },
+  "sensitiveInformationPolicyConfig": {
+    "piiEntitiesConfig": [
+      {
+        "type": "EMAIL",
+        "action": "ANONYMIZE"
+      },
+      {
+        "type": "PHONE",
+        "action": "ANONYMIZE"
+      },
+      {
+        "type": "AWS_ACCESS_KEY",
+        "action": "BLOCK"
+      },
+      {
+        "type": "AWS_SECRET_KEY",
+        "action": "BLOCK"
+      }
+    ],
+    "regexesConfig": [
+      {
+        "name": "generic-api-token",
+        "description": "Blocks likely API tokens in generated answers.",
+        "pattern": "(?i)(api[_-]?key|token|secret)[=:][A-Za-z0-9_./+-]{12,}",
+        "action": "BLOCK"
+      }
+    ]
+  },
+  "contextualGroundingPolicyConfig": {
+    "filtersConfig": [
+      {
+        "type": "GROUNDING",
+        "threshold": 0.7
+      },
+      {
+        "type": "RELEVANCE",
+        "threshold": 0.7
+      }
+    ]
+  }
+}

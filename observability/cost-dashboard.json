@@ -1,0 +1,78 @@
+{
+  "title": "InsightHub LLM Cost Dashboard",
+  "uid": "insighthub-llm-cost",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["insighthub", "day6", "finops", "llm_cost"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "LLM Generation Tokens",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum by (direction) (rate(insighthub_llm_tokens_total[5m]))",
+          "legendFormat": "{{direction}} tokens/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Embedding Tokens",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(insighthub_embedding_tokens_total[5m]))",
+          "legendFormat": "embedding tokens/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Approx LLM Cost Per Hour",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "((sum(rate(insighthub_llm_tokens_total{direction=\"input\"}[5m])) * 3600 / 1000000) * 3) + ((sum(rate(insighthub_llm_tokens_total{direction=\"output\"}[5m])) * 3600 / 1000000) * 15) + ((sum(rate(insighthub_embedding_tokens_total[5m])) * 3600 / 1000000) * 0.10)",
+          "legendFormat": "llm_cost_usd_per_hour",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Token Rate By Workload",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(insighthub_llm_tokens_total[5m]))",
+          "legendFormat": "generation tokens_total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(insighthub_embedding_tokens_total[5m]))",
+          "legendFormat": "embedding tokens_total",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 8}
+    }
+  ]
+}
